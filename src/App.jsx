@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { 
   GraduationCap, ClipboardCheck, FileText, 
-  Download, AlertCircle, FileBadge, Trash2, Save, Upload, FileJson
+  Download, AlertCircle, FileBadge, Trash2, Save, Upload, Edit3
 } from 'lucide-react';
 
 const App = () => {
@@ -9,6 +9,7 @@ const App = () => {
   const [studentInfo, setStudentInfo] = useState({ identity: '', classe: '' });
   const [evaluations, setEvaluations] = useState({});
   const [globalComment, setGlobalComment] = useState('');
+  const [manualNote, setManualNote] = useState(''); // État pour la note manuelle
   const [catCoeffs, setCatCoeffs] = useState({ 
     mobilisation: 6, exploitation: 5, raisonnement: 7, redaction: 2 
   });
@@ -17,15 +18,15 @@ const App = () => {
 
   // --- FONCTIONS DE SAUVEGARDE MANUELLE (FICHIER) ---
   
-  // Exporter vers un fichier JSON
   const exportToJson = () => {
     const data = {
       studentInfo,
       evaluations,
       globalComment,
       catCoeffs,
+      manualNote, // Sauvegarde de la note manuelle
       exportDate: new Date().toISOString(),
-      version: "1.0"
+      version: "1.1"
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -37,7 +38,6 @@ const App = () => {
     URL.revokeObjectURL(url);
   };
 
-  // Importer depuis un fichier JSON
   const importFromJson = (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -50,15 +50,14 @@ const App = () => {
           setStudentInfo(parsed.studentInfo || { identity: '', classe: '' });
           setEvaluations(parsed.evaluations || {});
           setGlobalComment(parsed.globalComment || '');
+          setManualNote(parsed.manualNote || ''); // Récupération de la note manuelle
           if (parsed.catCoeffs) setCatCoeffs(parsed.catCoeffs);
-          // Message de succès discret
         }
       } catch (err) {
-        alert("Erreur lors de la lecture du fichier. Assurez-vous qu'il s'agit d'un fichier de sauvegarde valide.");
+        alert("Erreur lors de la lecture du fichier.");
       }
     };
     reader.readAsText(file);
-    // Reset l'input pour pouvoir ré-importer le même fichier si besoin
     event.target.value = null;
   };
 
@@ -74,8 +73,8 @@ const App = () => {
     'raisonnement-Réponse traitant le sujet': 3,
     'raisonnement-Arguments appuyés sur les documents': 3,
     'raisonnement-Paragraphes organisés et cohérents': 2,
-    'raisonnement-Conclusion claire': 1,
-    'redaction-Syntaxe et orthographe': 1,
+    'raisonnement-Conclusion claire': 0.5,
+    'redaction-Syntaxe et orthographe': 0.5,
     'redaction-Soin et lisibilité': 1,
   };
 
@@ -98,10 +97,11 @@ const App = () => {
   };
 
   const resetAll = () => { 
-    if(window.confirm("Tout effacer pour un nouvel élève ? (Pensez à sauvegarder si besoin)")) { 
+    if(window.confirm("Tout effacer pour un nouvel élève ?")) { 
       setStudentInfo({ identity: '', classe: '' }); 
       setEvaluations({}); 
       setGlobalComment('');
+      setManualNote('');
     }
   };
 
@@ -127,8 +127,11 @@ const App = () => {
     });
 
     const noteBrute = totalPointsMax > 0 ? (totalPointsObtenus / totalPointsMax) * 20 : 0;
-    return { note: (Math.ceil(noteBrute * 2) / 2).toFixed(1), details: parCategorie };
+    return { calculated: (Math.ceil(noteBrute * 2) / 2).toFixed(1), details: parCategorie };
   }, [evaluations, catCoeffs]);
+
+  // Détermination de la note finale à afficher
+  const finalNote = manualNote !== '' ? manualNote : stats.calculated;
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 p-4 print:p-0 print:bg-white text-[14px]">
@@ -147,27 +150,32 @@ const App = () => {
           
           {/* Actions de fichiers */}
           <div className="flex gap-2 ml-auto">
-            <button 
-              onClick={() => fileInputRef.current.click()} 
-              className="flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all"
-              title="Charger une sauvegarde .json"
-            >
+            <button onClick={() => fileInputRef.current.click()} className="flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all">
               <Upload size={16} /> Charger
             </button>
             <input type="file" ref={fileInputRef} onChange={importFromJson} accept=".json" className="hidden" />
-            
-            <button 
-              onClick={exportToJson}
-              className="flex items-center gap-2 px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-xs font-bold transition-all shadow-sm"
-              title="Télécharger la sauvegarde sur mon PC"
-            >
+            <button onClick={exportToJson} className="flex items-center gap-2 px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-xs font-bold transition-all shadow-sm">
               <Save size={16} /> Sauvegarder .json
             </button>
           </div>
 
-          <div className="flex items-center gap-3 bg-slate-900 text-white px-4 py-2 rounded-lg">
-            <span className="text-xs font-bold uppercase opacity-70 italic">Note :</span>
-            <span className="text-2xl font-black">{stats.note}</span>
+          {/* Saisie de la note (Double affichage) */}
+          <div className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-lg">
+            <div className="flex flex-col items-center border-r border-white/20 pr-3 mr-1">
+              <span className="text-[8px] font-black uppercase opacity-60">Calculée</span>
+              <span className="text-sm font-bold opacity-80">{stats.calculated}</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <span className="text-[8px] font-black uppercase text-amber-400">Note Finale</span>
+              <input 
+                type="number" 
+                step="0.5" 
+                value={manualNote} 
+                onChange={e => setManualNote(e.target.value)} 
+                placeholder={stats.calculated}
+                className="w-12 bg-transparent text-xl font-black text-center outline-none border-b border-amber-400/50 focus:border-amber-400 placeholder:opacity-30"
+              />
+            </div>
           </div>
           
           <div className="flex gap-2">
@@ -215,23 +223,26 @@ const App = () => {
         </section>
       </main>
 
-      {/* --- VUE PDF (Grille 2x2 optimisée) --- */}
+      {/* --- VUE PDF --- */}
       <div className="hidden print:block max-w-[210mm] mx-auto p-6 text-slate-900 leading-tight">
         <header className="flex justify-between items-center border-b-4 border-slate-900 pb-4 mb-4">
           <div>
             <h1 className="text-2xl font-black uppercase italic">Grille d'Évaluation SES</h1>
             <p className="text-slate-500 font-bold uppercase text-[9px] tracking-[0.2em]">Spécialité SES - Première</p>
           </div>
-          <div className="bg-slate-900 text-white px-5 py-2 rounded-xl text-center">
-            <div className="text-[9px] font-black uppercase opacity-60">Note Finale</div>
-            <div className="text-2xl font-black">{stats.note} <span className="text-xs opacity-40">/ 20</span></div>
+          <div className="bg-slate-900 text-white px-5 py-2 rounded-xl text-center flex items-baseline gap-2">
+            <div>
+              <div className="text-[9px] font-black uppercase opacity-60">Note Finale</div>
+              <div className="text-2xl font-black">{finalNote} <span className="text-xs opacity-40">/ 20</span></div>
+            </div>
+            {manualNote && <Edit3 size={14} className="opacity-40" />}
           </div>
         </header>
 
         <div className="flex gap-8 mb-4 text-[11px] font-bold uppercase text-slate-700 border-b border-slate-100 pb-2">
           <span>Élève : <span className="text-indigo-600">{studentInfo.identity || '___________________'}</span></span>
           <span>Classe : <span className="text-indigo-600">{studentInfo.classe || '__________'}</span></span>
-                  </div>
+        </div>
 
         <div className="grid grid-cols-4 gap-4 mb-6">
           {criteres.map(crit => (
@@ -245,14 +256,13 @@ const App = () => {
           ))}
         </div>
 
-        {/* Grille 2 par 2 pour les observations */}
         <div className="grid grid-cols-2 gap-4 mb-4">
           {criteres.map(crit => {
             const obs = crit.items.filter(i => evaluations[`${crit.id}-${i}`]?.note || evaluations[`${crit.id}-${i}`]?.comment);
             return (
               <div key={crit.id} className="border border-slate-100 rounded-lg p-2 bg-slate-50/30 break-inside-avoid">
                 <h3 className="text-[9px] font-black uppercase text-indigo-600 mb-2 border-b border-indigo-100 pb-1 flex justify-between">
-                  {crit.titre} <span className="text-slate-400 opacity-50">Coeff. {catCoeffs[crit.id]}</span>
+                  {crit.titre}
                 </h3>
                 <div className="space-y-2">
                   {obs.length > 0 ? obs.map(i => {
